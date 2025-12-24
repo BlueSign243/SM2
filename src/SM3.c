@@ -97,8 +97,8 @@ int SM3_Update(SM3_CTX *ctx, const uint8_t *data, size_t len) {
 
     /* 将剩余数据复制到缓冲区 */
     if (len > 0) {
-        memcpy(ctx->block + ctx->block_len, data, len);
-        ctx->block_len += len;
+        memcpy(ctx->block, data, len);
+        ctx->block_len = len;
     }
 
     return SM3_SUCCESS;
@@ -113,17 +113,9 @@ int SM3_Final(SM3_CTX *ctx, uint8_t digest[SM3_DIGEST_SIZE]) {
     SM3_PadMessage(ctx);
 
     /* 处理填充后的数据块 */
-    if (ctx->block_len > 0) {
-        /* 如果填充后缓冲区仍不满一个块，说明需要多处理一个块 */
-        if (ctx->block_len < SM3_BLOCK_SIZE)
-            return SM3_INTERNAL_ERROR;
-
-        /* 处理填充后的完整块 */
+    if (ctx->block_len == SM3_BLOCK_SIZE)
         SM3_Compress(ctx->state, ctx->block);
-        ctx->block_len = 0;
-    }
 
-    /* 将哈希状态转换为大端序字节数组 */
     for (int i = 0; i < SM3_STATE_WORDS; i++) {
         digest[i * 4] = (ctx->state[i] >> 24) & 0xFF;
         digest[i * 4 + 1] = (ctx->state[i] >> 16) & 0xFF;
@@ -158,61 +150,53 @@ int SM3(const uint8_t *data, size_t len, uint8_t digest[SM3_DIGEST_SIZE]) {
 
 void SM3_PadMessage(SM3_CTX *ctx) {
     size_t original_len = ctx->block_len;
-    size_t pad_len;
+    uint64_t bit_len = ctx->total_len * 8; /* 转换为比特数 */
 
     /* 计算需要填充的长度 */
-    if (original_len < SM3_BLOCK_SIZE - 8) {
+    if (original_len <= SM3_BLOCK_SIZE - 9) {
         /* 情况1：可以在当前块内完成填充 */
-        pad_len = SM3_BLOCK_SIZE - 8 - original_len;
+        size_t pad_len = SM3_BLOCK_SIZE - 8 - original_len;
 
         /* 添加第一个字节：0x80 (10000000) */
-        ctx->block[ctx->block_len++] = 0x80;
+        ctx->block[original_len] = 0x80;
 
         /* 填充0字节 */
-        if (pad_len > 1) {
-            memset(ctx->block + ctx->block_len, 0, pad_len - 1);
-            ctx->block_len += pad_len - 1;
-        }
+        if (pad_len > 1)
+            memset(ctx->block + original_len + 1, 0, pad_len - 1);
 
         /* 添加消息长度（64位，大端序） */
-        uint64_t bit_len = ctx->total_len * 8; /* 转换为比特数 */
         for (int i = 0; i < 8; i++)
-            ctx->block[ctx->block_len + 7 - i] = (bit_len >> (i * 8)) & 0xFF;
+            ctx->block[SM3_BLOCK_SIZE - 8 + i] = (bit_len >> (56 - i * 8)) & 0xFF;
 
-        ctx->block_len += 8;
+        ctx->block_len = SM3_BLOCK_SIZE; /* 块现在已满 */
     } else {
         /* 情况2：需要两个块完成填充 */
 
         /* 第一个块：添加0x80并填充到块末尾 */
-        ctx->block[ctx->block_len++] = 0x80;
+        ctx->block[original_len] = 0x80;
 
         /* 填充第一个块的剩余部分 */
-        size_t first_block_pad = SM3_BLOCK_SIZE - ctx->block_len;
-        if (first_block_pad > 0) {
-            memset(ctx->block + ctx->block_len, 0, first_block_pad);
-            ctx->block_len += first_block_pad;
-        }
+        size_t first_block_pad = SM3_BLOCK_SIZE - original_len - 1;
+        if (first_block_pad > 0)
+            memset(ctx->block + original_len + 1, 0, first_block_pad);
 
-        /* 处理第一个块 */
+        /* 处理第一个块（填充后的块长度为64字节） */
         SM3_Compress(ctx->state, ctx->block);
 
         /* 准备第二个块 */
         ctx->block_len = 0;
         memset(ctx->block, 0, SM3_BLOCK_SIZE);
 
-        /* 第二个块：填充0字节 */
-        size_t second_block_pad = SM3_BLOCK_SIZE - 8; /* 第二个块需要填充到64-8=56字节 */
-        if (second_block_pad > 0) {
+        /* 第二个块：填充0字节，直到剩下8字节用于长度 */
+        size_t second_block_pad = SM3_BLOCK_SIZE - 8;
+        if (second_block_pad > 0)
             memset(ctx->block, 0, second_block_pad);
-            ctx->block_len += second_block_pad;
-        }
 
         /* 添加消息长度（64位，大端序） */
-        uint64_t bit_len = ctx->total_len * 8; /* 转换为比特数 */
         for (int i = 0; i < 8; i++)
-            ctx->block[ctx->block_len + 7 - i] = (bit_len >> (i * 8)) & 0xFF;
+            ctx->block[second_block_pad + i] = (bit_len >> (56 - i * 8)) & 0xFF;
 
-        ctx->block_len += 8;
+        ctx->block_len = SM3_BLOCK_SIZE; /* 第二个块也是完整的64字节 */
     }
 }
 

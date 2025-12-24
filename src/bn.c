@@ -9,6 +9,7 @@
 void bn_make(bn_t a, size_t digits) {
     if (digits > BN_SIZE || digits < 0)
         return;
+
     digits = BN_SIZE;
     if (a != NULL) {
         a->used = 1;
@@ -20,9 +21,9 @@ void bn_make(bn_t a, size_t digits) {
 
 void bn_trim(bn_t a) {
     if (a->used <= a->alloc) {
-        while (a->used > 0 && a->dp[a->used - 1] == 0) {
+        while (a->used > 0 && a->dp[a->used - 1] == 0)
             --(a->used);
-        }
+
         if (a->used == 0) {
             a->used = 1;
             a->dp[0] = 0;
@@ -65,6 +66,16 @@ void bn_rand(bn_t a, int sign, size_t bits) {
     free(buffer);
 }
 
+void bn_rand_mod(bn_t a, const bn_st *m) {
+    bn_t t;
+    bn_new(t);
+    bn_copy(t, m);
+    do {
+        bn_rand(a, m->sign, bn_bit_len(t) + RAND_DIST);
+        bn_mod(a, a, t);
+    } while (bn_is_zero(a) || bn_cmp_abs(a, t) != BN_LT);
+}
+
 int dv_cmp(const dig_t *a, const dig_t *b, size_t size) {
     int r;
 
@@ -72,11 +83,10 @@ int dv_cmp(const dig_t *a, const dig_t *b, size_t size) {
     b += (size - 1);
 
     r = BN_EQ;
-    for (size_t i = 0; i < size; i++, --a, --b) {
-        if (*a != *b && r == BN_EQ) {
+    for (size_t i = 0; i < size; i++, --a, --b)
+        if (*a != *b && r == BN_EQ)
             r = (*a > *b ? BN_GT : BN_LT);
-        }
-    }
+
     return r;
 }
 
@@ -88,12 +98,11 @@ void dv_rshd(dig_t *c, const dig_t *a, size_t size, uint_t digits) {
     top = a + digits;
     bot = c;
 
-    for (i = 0; i < size - digits; i++, top++, bot++) {
+    for (i = 0; i < size - digits; i++, top++, bot++)
         *bot = *top;
-    }
-    for (; i < size; i++, bot++) {
+
+    for (; i < size; i++, bot++)
         *bot = 0;
-    }
 }
 
 void dv_lshd(dig_t *c, const dig_t *a, size_t size, uint_t digits) {
@@ -104,28 +113,50 @@ void dv_lshd(dig_t *c, const dig_t *a, size_t size, uint_t digits) {
     top = c + size - 1;
     bot = a + size - 1 - digits;
 
-    for (i = 0; i < size - digits; i++, top--, bot--) {
+    for (i = 0; i < size - digits; i++, top--, bot--)
         *top = *bot;
-    }
-    for (i = 0; i < digits; i++, c++) {
+
+    for (i = 0; i < digits; i++, c++)
         *c = 0;
+}
+
+static size_t util_bits_dig(dig_t a) {
+    size_t bits = 0;
+    dig_t t = a;
+    while (t) {
+        bits++;
+        t >>= 1;
     }
+    return bits;
 }
 
 int bn_cmp_abs(const bn_t a, const bn_t b) {
-    if (bn_is_zero(a) && bn_is_zero(b)) {
+    if (bn_is_zero(a) && bn_is_zero(b))
         return BN_EQ;
-    }
 
-    if (a->used > b->used) {
+    if (a->used > b->used)
         return BN_GT;
-    }
 
-    if (a->used < b->used) {
+    if (a->used < b->used)
         return BN_LT;
-    }
 
     return dv_cmp(a->dp, b->dp, a->used);
+}
+
+int bn_cmp_dig(const bn_t a, dig_t b) {
+    if (a->sign == BN_NEG)
+        return BN_LT;
+
+    if (a->used > 1)
+        return BN_GT;
+
+    if (a->dp[0] > b)
+        return BN_GT;
+
+    if (a->dp[0] < b)
+        return BN_LT;
+
+    return BN_EQ;
 }
 
 int bn_cmp(const bn_t a, const bn_t b) {
@@ -142,6 +173,17 @@ int bn_cmp(const bn_t a, const bn_t b) {
         return bn_cmp_abs(b, a);
 
     return bn_cmp_abs(a, b);
+}
+
+int bn_bit_len(const bn_t a) {
+    int bits = util_bits_dig(a->dp[a->used - 1]);
+    return bits + (a->used - 1) * WSIZE;
+}
+
+int bn_get_one_bit(const bn_t a, int bit) {
+    int bit_index = bit % WSIZE;
+    int word_index = bit / WSIZE;
+    return (a->dp[word_index] >> bit_index) & 1;
 }
 
 int bn_is_zero(const bn_t a) {
@@ -175,19 +217,32 @@ void bn_copy(bn_t c, const bn_t a) {
 }
 
 void bn_abs(bn_t c, const bn_t a) {
-    if (c->dp != a->dp) {
+    if (c->dp != a->dp)
         bn_copy(c, a);
-    }
+
     c->sign = BN_POS;
 }
 
 void bn_neg(bn_t c, const bn_t a) {
-    if (c->dp != a->dp) {
+    if (c->dp != a->dp)
         bn_copy(c, a);
-    }
-    if (!bn_is_zero(c)) {
+
+    if (!bn_is_zero(c))
         c->sign = a->sign ^ 1;
+}
+
+void bn_from_digest(bn_t a, const uint8_t digest[SM3_DIGEST_SIZE]) {
+    for (int i = 0; i < SM3_DIGEST_SIZE; i += 8) {
+        a->dp[3 - i / 8] |= (dig_t)digest[i] << 56;
+        a->dp[3 - i / 8] |= (dig_t)digest[i + 1] << 48;
+        a->dp[3 - i / 8] |= (dig_t)digest[i + 2] << 40;
+        a->dp[3 - i / 8] |= (dig_t)digest[i + 3] << 32;
+        a->dp[3 - i / 8] |= (dig_t)digest[i + 4] << 24;
+        a->dp[3 - i / 8] |= (dig_t)digest[i + 5] << 16;
+        a->dp[3 - i / 8] |= (dig_t)digest[i + 6] << 8;
+        a->dp[3 - i / 8] |= (dig_t)digest[i + 7];
     }
+    a->used = 4;
 }
 
 void bn_from_hex(bn_t a, const char *hex) {
@@ -237,11 +292,26 @@ void bn_from_hex(bn_t a, const char *hex) {
     bn_trim(a);
 }
 
+char *bn_to_hex(const bn_t a) {
+    if (bn_is_zero(a))
+        return "0";
+
+    char *hex = malloc((a->used * WSIZE / 8 + 1) * sizeof(char));
+    int j = 0;
+    for (int i = a->used - 1; i >= 0; i--)
+        for (int shift = WSIZE - 8; shift >= 0; shift -= 8)
+            hex[j++] = (a->dp[i] >> shift) & 0xFF;
+    hex[j] = '\0';
+    return hex;
+}
+
 void bn_print(bn_t a) {
     if (a->sign == BN_NEG)
         printf("-");
+
     for (int i = a->used - 1; i >= 0; i--)
-        printf("%016llx ", a->dp[i]);
+        printf("%016llX ", a->dp[i]);
+
     printf("\n");
 }
 
@@ -374,7 +444,7 @@ void bn_sub_imp(bn_t c, const bn_t a, const bn_t b) {
 dig_t bn_mul1_low(dig_t *c, const dig_t *a, dig_t digit, size_t size) {
     dig_t r0, r1, carry = 0;
     for (int i = 0; i < size; i++, a++, c++) {
-        RLC_MUL_DIG(r1, r0, *a, digit);
+        MUL_DIG(r1, r0, *a, digit);
         *c = r0 + carry;
         carry = r1 + (*c < carry);
     }
@@ -391,7 +461,7 @@ void bn_muln_low(dig_t *c, const dig_t *a, const dig_t *b, size_t size) {
         tmpa = a;
         tmpb = b + i;
         for (j = 0; j <= i; j++, tmpa++, tmpb--) {
-            RLC_COMBA_STEP_MUL(r2, r1, r0, *tmpa, *tmpb);
+            COMBA_STEP_MUL(r2, r1, r0, *tmpa, *tmpb);
         }
         *c = r0;
         r0 = r1;
@@ -402,7 +472,7 @@ void bn_muln_low(dig_t *c, const dig_t *a, const dig_t *b, size_t size) {
         tmpa = a + i + 1;
         tmpb = b + (size - 1);
         for (j = 0; j < size - (i + 1); j++, tmpa++, tmpb--) {
-            RLC_COMBA_STEP_MUL(r2, r1, r0, *tmpa, *tmpb);
+            COMBA_STEP_MUL(r2, r1, r0, *tmpa, *tmpb);
         }
         *c = r0;
         r0 = r1;
@@ -423,7 +493,7 @@ void bn_muld_low(dig_t *c, const dig_t *a, size_t sa, const dig_t *b, size_t sb,
         tmpa = a;
         tmpb = b + i;
         for (j = 0; j <= i; j++, tmpa++, tmpb--) {
-            RLC_COMBA_STEP_MUL(r2, r1, r0, *tmpa, *tmpb);
+            COMBA_STEP_MUL(r2, r1, r0, *tmpa, *tmpb);
         }
         *c = r0;
         r0 = r1;
@@ -435,7 +505,7 @@ void bn_muld_low(dig_t *c, const dig_t *a, size_t sa, const dig_t *b, size_t sb,
         tmpa = a + ++ta;
         tmpb = b + (sb - 1);
         for (j = 0; j < sb; j++, tmpa++, tmpb--) {
-            RLC_COMBA_STEP_MUL(r2, r1, r0, *tmpa, *tmpb);
+            COMBA_STEP_MUL(r2, r1, r0, *tmpa, *tmpb);
         }
         *c = r0;
         r0 = r1;
@@ -446,7 +516,7 @@ void bn_muld_low(dig_t *c, const dig_t *a, size_t sa, const dig_t *b, size_t sb,
         tmpa = a + ++ta;
         tmpb = b + (sb - 1);
         for (j = 0; j < sa - ta; j++, tmpa++, tmpb--) {
-            RLC_COMBA_STEP_MUL(r2, r1, r0, *tmpa, *tmpb);
+            COMBA_STEP_MUL(r2, r1, r0, *tmpa, *tmpb);
         }
         *c = r0;
         r0 = r1;
@@ -461,7 +531,7 @@ dig_t bn_lshb_low(dig_t *c, const dig_t *a, size_t size, uint_t bits) {
 
     shift = DIG - bits;
     carry = 0;
-    mask = RLC_MASK(bits);
+    mask = MASK(bits);
     for (i = 0; i < size; i++, a++, c++) {
         /* Get the needed least significant bits. */
         r = ((*a) >> shift) & mask;
@@ -482,7 +552,7 @@ dig_t bn_rshb_low(dig_t *c, const dig_t *a, size_t size, uint_t bits) {
     /* Prepare the bit mask. */
     shift = (DIG - bits) % DIG;
     carry = 0;
-    mask = RLC_MASK(bits);
+    mask = MASK(bits);
     for (i = size - 1; i >= 0; i--, a--, c--) {
         /* Get the needed least significant bits. */
         r = (*a) & mask;
@@ -492,16 +562,6 @@ dig_t bn_rshb_low(dig_t *c, const dig_t *a, size_t size, uint_t bits) {
         carry = r;
     }
     return carry;
-}
-
-size_t util_bits_dig(dig_t a) {
-    size_t bits = 0;
-    dig_t t = a;
-    while (t) {
-        bits++;
-        t >>= 1;
-    }
-    return bits;
 }
 
 void bn_divn_low(dig_t *c, dig_t *d, dig_t *a, size_t sa, dig_t *b, size_t sb) {
@@ -549,9 +609,9 @@ void bn_divn_low(dig_t *c, dig_t *d, dig_t *a, size_t sa, dig_t *b, size_t sb) {
         }
 
         if (a[i] == b[t]) {
-            c[i - t - 1] = RLC_MASK(DIG);
+            c[i - t - 1] = MASK(DIG);
         } else {
-            RLC_DIV_DIG(c[i - t - 1], carry, a[i], a[i - 1], b[t]);
+            DIV_DIG(c[i - t - 1], carry, a[i], a[i - 1], b[t]);
         }
 
         c[i - t - 1]++;
@@ -591,7 +651,7 @@ void bn_divn_low(dig_t *c, dig_t *d, dig_t *a, size_t sa, dig_t *b, size_t sb) {
     bn_rshb_low(d, a, sb, norm);
 }
 
-static void bn_div_imp(bn_t c, bn_t d, const bn_t a, const bn_t b) {
+void bn_div_imp(bn_t c, bn_t d, const bn_t a, const bn_t b) {
     bn_t q, x, y, r;
     int sign;
 
@@ -658,6 +718,62 @@ static void bn_div_imp(bn_t c, bn_t d, const bn_t a, const bn_t b) {
     }
 }
 
+void bn_gcd_ext(bn_t c, bn_t d, bn_t e, const bn_t a, const bn_t b) {
+    bn_t u, v, x_1, y_1, q, r;
+
+    if (bn_is_zero(a)) {
+        bn_abs(c, b);
+        bn_zero(d);
+        if (e != NULL)
+            bn_set_dig(e, 1);
+        return;
+    }
+
+    if (bn_is_zero(b)) {
+        bn_abs(c, a);
+        bn_set_dig(d, 1);
+        if (e != NULL)
+            bn_zero(e);
+        return;
+    }
+
+    bn_new(u);
+    bn_new(v);
+    bn_new(x_1);
+    bn_new(y_1);
+    bn_new(q);
+    bn_new(r);
+
+    bn_abs(u, a);
+    bn_abs(v, b);
+
+    bn_zero(x_1);
+    bn_set_dig(y_1, 1);
+    bn_set_dig(d, 1);
+    if (e != NULL)
+        bn_zero(e);
+
+    while (!bn_is_zero(v)) {
+        bn_div(q, r, u, v);
+
+        bn_copy(u, v);
+        bn_copy(v, r);
+
+        bn_mul(c, q, x_1);
+        bn_sub(r, d, c);
+        bn_copy(d, x_1);
+        bn_copy(x_1, r);
+
+        if (e != NULL) {
+            bn_mul(c, q, y_1);
+            bn_sub(r, e, c);
+            bn_copy(e, y_1);
+            bn_copy(y_1, r);
+        }
+    }
+    bn_copy(c, u);
+}
+
 /* operation functions */
 void bn_add(bn_t c, const bn_t a, const bn_t b) {
     int sa, sb;
@@ -683,6 +799,36 @@ void bn_add(bn_t c, const bn_t a, const bn_t b) {
             c->sign = sa;
         }
     }
+}
+
+void bn_add_dig(bn_t c, const bn_t a, dig_t b) {
+    dig_t carry;
+
+    if (a->sign == BN_POS) {
+        carry = bn_add1_low(c->dp, a->dp, b, a->used);
+        if (carry) {
+            c->dp[a->used] = carry;
+        }
+        c->used = a->used + carry;
+        c->sign = BN_POS;
+    } else {
+        /* If a < 0 && |a| >= b, compute c = -(|a| - b). */
+        if (a->used > 1 || a->dp[0] >= b) {
+            carry = bn_sub1_low(c->dp, a->dp, b, a->used);
+            c->used = a->used;
+            c->sign = BN_NEG;
+        } else {
+            /* If a < 0 && |a| < b. */
+            if (a->used == 1) {
+                c->dp[0] = b - a->dp[0];
+            } else {
+                c->dp[0] = b;
+            }
+            c->used = 1;
+            c->sign = BN_POS;
+        }
+    }
+    bn_trim(c);
 }
 
 void bn_sub(bn_t c, const bn_t a, const bn_t b) {
@@ -737,4 +883,42 @@ void bn_div(bn_t c, bn_t d, const bn_t a, const bn_t b) {
     if (bn_is_zero(b))
         return;
     bn_div_imp(c, d, a, b);
+}
+
+void bn_mod(bn_t c, const bn_t a, const bn_t m) {
+    bn_div(NULL, c, a, m);
+}
+
+void bn_mod_inv(bn_t c, const bn_t a, const bn_t b) {
+    bn_t t, u;
+
+    bn_new(t);
+    bn_new(u);
+
+    bn_mod(t, a, b);
+    bn_copy(u, b);
+    bn_gcd_ext(t, c, NULL, t, b);
+
+    if (c->sign == BN_NEG)
+        bn_add(c, c, u);
+
+    if (bn_cmp_dig(t, 1) != BN_EQ)
+        return;
+}
+
+void bn_mod_add(bn_t c, const bn_t a, const bn_t b, const bn_t m) {
+    bn_add(c, a, b);
+    if (bn_cmp(c, m) == BN_GT)
+        bn_mod(c, c, m);
+}
+
+void bn_mod_sub(bn_t c, const bn_t a, const bn_t b, const bn_t m) {
+    bn_sub(c, a, b);
+    while (c->sign == BN_NEG)
+        bn_add(c, c, m);
+}
+
+void bn_mod_mul(bn_t c, const bn_t a, const bn_t b, const bn_t m) {
+    bn_mul(c, a, b);
+    bn_mod(c, c, m);
 }
