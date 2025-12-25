@@ -3,7 +3,6 @@
 #include "bn.h"
 #include "ec.h"
 #include "point.h"
-#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
