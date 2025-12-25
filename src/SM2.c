@@ -7,16 +7,6 @@
 #include <stdio.h>
 #include <string.h>
 
-int SM2_GenerateKeyPair(SM2_PRI_KEY *pri_key, SM2_PUB_KEY *pub_key, group *g) {
-    if (pri_key == NULL || pub_key == NULL || g == NULL)
-        return SM2_NULL_PTR;
-    create_group(g, SM2_CURVE_PARAM_P, SM2_CURVE_PARAM_A, SM2_CURVE_PARAM_B, SM2_CURVE_PARAM_GX, SM2_CURVE_PARAM_GY,
-                 SM2_CURVE_PARAM_N);
-    bn_rand_mod(pri_key->da, g->n);
-    point_mul(&pub_key->pa, &g->g, pri_key->da, g->p, g->a);
-    return SM2_SUCCESS;
-}
-
 void compute_z(uint8_t z[SM3_DIGEST_SIZE], group *g, const uint8_t *id, const size_t entl) {
     SM3_CTX sm3_ctx;
     SM3_Init(&sm3_ctx);
@@ -49,6 +39,16 @@ void compute_e(uint8_t e[SM3_DIGEST_SIZE], const uint8_t z[SM3_DIGEST_SIZE], con
     SM3_Update(&sm3_ctx, z, SM3_DIGEST_SIZE);
     SM3_Update(&sm3_ctx, msg, mlen);
     SM3_Final(&sm3_ctx, e);
+}
+
+int SM2_GenerateKeyPair(SM2_PRI_KEY *pri_key, SM2_PUB_KEY *pub_key, group *g) {
+    if (pri_key == NULL || pub_key == NULL || g == NULL)
+        return SM2_NULL_PTR;
+    create_group(g, SM2_CURVE_PARAM_P, SM2_CURVE_PARAM_A, SM2_CURVE_PARAM_B, SM2_CURVE_PARAM_GX, SM2_CURVE_PARAM_GY,
+                 SM2_CURVE_PARAM_N);
+    bn_rand_mod(pri_key->d, g->n);
+    point_mul(&pub_key->p, &g->g, pri_key->d, g->p, g->a);
+    return SM2_SUCCESS;
 }
 
 int SM2_Sign(SM2_PRI_KEY *pri_key, group *g, const uint8_t *msg, size_t mlen, uint8_t *id, size_t entl, SM2_SIG *sig) {
@@ -99,10 +99,10 @@ int SM2_Sign(SM2_PRI_KEY *pri_key, group *g, const uint8_t *msg, size_t mlen, ui
         }
 
         // t0 = (1 + da)^-1 mod n
-        bn_add_dig(t0, pri_key->da, 1);
+        bn_add_dig(t0, pri_key->d, 1);
         bn_mod_inv(t0, t0, g->n);
         // t1 = r * da mod n
-        bn_mod_mul(t1, r, pri_key->da, g->n);
+        bn_mod_mul(t1, r, pri_key->d, g->n);
         // t2 = (k - r * da) mod n
         bn_mod_sub(t2, k, t1, g->n);
         // step 6: compute s = (k - r * da) * (1 + da)^-1 mod n
@@ -167,7 +167,7 @@ int SM2_Verify(SM2_PUB_KEY *pub_key, group *g, const uint8_t *msg, size_t mlen, 
 
     // step 6: compute Q = sG + tPa
     point_mul(&Q, &g->g, s, g->p, g->a);
-    point_mul(&P, &pub_key->pa, t, g->p, g->a);
+    point_mul(&P, &pub_key->p, t, g->p, g->a);
     point_add(&Q, &Q, &P, g->p, g->a);
 
     // step 7: compute R = e + x1 mod n

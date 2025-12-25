@@ -14,6 +14,8 @@
 #define SM2_CURVE_PARAM_GX "421DEBD61B62EAB6746434EBC3CC315E32220B3BADD50BDC4C4E6C147FEDD43D"
 #define SM2_CURVE_PARAM_GY "0680512BCBB42C07D47349D2153B70C4E5D7FDFCBFA36EA1A85841B9E46E09A2"
 #define SM2_CURVE_PARAM_N  "8542D69E4C044F18E8B92435BF6FF7DD297720630485628D5AE74EE7C32E79B7"
+#define SM2_ENC_PRI_KEY    "1649AB77A00637BD5E2EFE283FBF353534AA7F7CB89463F208DDBC2920BB0DA0"
+#define SM2_ENC_K          "4C62EEFD6ECFC2B95B92FD6C3D9575148AFA17425546D49018E5388D49DD7B4F"
 
 /* SM2算法错误码 */
 #define SM2_SUCCESS        0  /* 成功 */
@@ -23,12 +25,12 @@
 
 /* SM2私钥结构 */
 typedef struct {
-    bn_t da; /* 私钥 */
+    bn_t d; /* 私钥 */
 } SM2_PRI_KEY;
 
 /* SM2公钥结构 */
 typedef struct {
-    point pa; /* 公钥 */
+    point p; /* 公钥 */
 } SM2_PUB_KEY;
 
 /* SM2签名结构 */
@@ -80,7 +82,7 @@ int SM2_Verify(SM2_PUB_KEY *pub_key, group *g, const uint8_t *msg, size_t mlen, 
  * @param clen    密文长度
  * @return 错误码
  */
-int SM2_Encrypt(SM2_PUB_KEY *pub_key, const uint8_t *plain, size_t plen, uint8_t *cipher, size_t *clen);
+int SM2_Encrypt(SM2_PUB_KEY *pub_key, group *g, const uint8_t *plain, size_t plen, uint8_t *cipher, size_t *clen);
 
 /**
  * @brief SM2解密
@@ -91,6 +93,6 @@ int SM2_Encrypt(SM2_PUB_KEY *pub_key, const uint8_t *plain, size_t plen, uint8_t
  * @param plen    明文长度
  * @return 错误码
  */
-int SM2_Decrypt(SM2_PRI_KEY *pri_key, const uint8_t *cipher, size_t clen, uint8_t *plain, size_t *plen);
+int SM2_Decrypt(SM2_PRI_KEY *pri_key, group *g, const uint8_t *cipher, size_t clen, uint8_t *plain, size_t *plen);
 
 #endif
