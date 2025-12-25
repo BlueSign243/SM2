@@ -30,13 +30,14 @@ int SM2_GenerateKeyPair(SM2_PRI_KEY *pri_key, SM2_PUB_KEY *pub_key, group *g);
 
 ### SM2签名
 ```c
-int SM2_Sign(SM2_PRI_KEY *pri_key, group *g, const uint8_t *msg, size_t mlen, uint8_t *id, size_t entl, SM2_SIG *sig);
+int SM2_Sign(SM2_PRI_KEY *pri_key, group *g, const uint8_t *msg, size_t mlen,
+             uint8_t *id, size_t entl, SM2_SIG *sig);
 ```
 
 ### SM2验签
 ```c
-int SM2_Verify(SM2_PUB_KEY *pub_key, group *g, const uint8_t *msg, size_t mlen, uint8_t *id, size_t entl,
-               const SM2_SIG *sig);
+int SM2_Verify(SM2_PUB_KEY *pub_key, group *g, const uint8_t *msg, size_t mlen,
+               uint8_t *id, size_t entl, const SM2_SIG *sig);
 ``` 
 
 ## 运行方法
