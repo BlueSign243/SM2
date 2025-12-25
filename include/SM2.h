@@ -21,11 +21,15 @@
 #define SM2_INVALID_SIG    -2 /* 无效签名 */
 #define SM2_INVALID_CIPHER -3 /* 无效密文 */
 
-/* SM2密钥对结构 */
+/* SM2私钥结构 */
 typedef struct {
-    bn_t private_key; /* 私钥 */
-    point public_key; /* 公钥 */
-} SM2_KEYPAIR;
+    bn_t da; /* 私钥 */
+} SM2_PRI_KEY;
+
+/* SM2公钥结构 */
+typedef struct {
+    point pa; /* 公钥 */
+} SM2_PUB_KEY;
 
 /* SM2签名结构 */
 typedef struct {
@@ -33,74 +37,60 @@ typedef struct {
     bn_t s; /* 签名s分量 */
 } SM2_SIG;
 
-/* SM2加密上下文结构 */
-typedef struct {
-    SM2_KEYPAIR keypair; /* 密钥对 */
-    group curve;         /* 椭圆曲线参数 */
-} SM2_CTX;
-
-/**
- * @brief 初始化SM2上下文
- * @param ctx SM2上下文指针
- * @return 错误码
- */
-int SM2_Init(SM2_CTX *ctx);
-
 /**
  * @brief 生成SM2密钥对
- * @param ctx SM2上下文指针
+ * @param pri_key 私钥
+ * @param pub_key 公钥
+ * @param g       椭圆曲线参数
  * @return 错误码
  */
-int SM2_GenerateKeyPair(SM2_CTX *ctx);
+int SM2_GenerateKeyPair(SM2_PRI_KEY *pri_key, SM2_PUB_KEY *pub_key, group *g);
 
 /**
  * @brief SM2数字签名
- * @param ctx  SM2上下文指针
- * @param msg  待签名消息
- * @param mlen 消息长度
- * @param id   用户标识
- * @param entl 用户标识长度
- * @param sig  签名输出缓冲区
+ * @param pri_key 私钥
+ * @param g       椭圆曲线参数
+ * @param msg     待签名消息
+ * @param mlen    消息长度
+ * @param id      用户标识
+ * @param entl    用户标识长度
+ * @param sig     签名
  * @return 错误码
  */
-int SM2_Sign(SM2_CTX *ctx, const uint8_t *msg, size_t mlen, uint8_t *id, size_t entl, SM2_SIG *sig);
+int SM2_Sign(SM2_PRI_KEY *pri_key, group *g, const uint8_t *msg, size_t mlen, uint8_t *id, size_t entl, SM2_SIG *sig);
 
 /**
  * @brief SM2签名验证
- * @param ctx SM2上下文指针
- * @param msg 原始消息
- * @param mlen 消息长度
- * @param sig 待验证签名
+ * @param pub_key 公钥
+ * @param g       椭圆曲线参数
+ * @param msg     原始消息
+ * @param mlen    消息长度
+ * @param sig     待验证签名
  * @return 错误码
  */
-int SM2_Verify(SM2_CTX *ctx, const uint8_t *msg, size_t mlen, uint8_t *id, size_t entl, const SM2_SIG *sig);
+int SM2_Verify(SM2_PUB_KEY *pub_key, group *g, const uint8_t *msg, size_t mlen, uint8_t *id, size_t entl,
+               const SM2_SIG *sig);
 
 /**
  * @brief SM2加密
- * @param ctx SM2上下文指针
- * @param plain 明文
- * @param plen 明文长度
- * @param cipher 密文输出缓冲区
- * @param clen 密文长度（输出参数）
+ * @param pub_key 公钥
+ * @param plain   明文
+ * @param plen    明文长度
+ * @param cipher  密文
+ * @param clen    密文长度
  * @return 错误码
  */
-int SM2_Encrypt(SM2_CTX *ctx, const uint8_t *plain, size_t plen, uint8_t *cipher, size_t *clen);
+int SM2_Encrypt(SM2_PUB_KEY *pub_key, const uint8_t *plain, size_t plen, uint8_t *cipher, size_t *clen);
 
 /**
  * @brief SM2解密
- * @param ctx SM2上下文指针
- * @param cipher 密文
- * @param clen 密文长度
- * @param plain 明文输出缓冲区
- * @param plen 明文长度（输出参数）
+ * @param pri_key 私钥
+ * @param cipher  密文
+ * @param clen    密文长度
+ * @param plain   明文
+ * @param plen    明文长度
  * @return 错误码
  */
-int SM2_Decrypt(SM2_CTX *ctx, const uint8_t *cipher, size_t clen, uint8_t *plain, size_t *plen);
-
-/**
- * @brief 清理SM2上下文
- * @param ctx SM2上下文指针
- */
-void SM2_Clean(SM2_CTX *ctx);
+int SM2_Decrypt(SM2_PRI_KEY *pri_key, const uint8_t *cipher, size_t clen, uint8_t *plain, size_t *plen);
 
 #endif
