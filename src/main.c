@@ -36,7 +36,7 @@ int main() {
         // 更新进度条
         if ((i + 1) % 2 == 0)
             progress[(i + 1) / 2 - 1] = '#';
-        printf("SM2 Test Progress: [%s] %d/100\r", progress, i + 1);
+        printf("SM2 Test Progress: [%s] %d / 100\r", progress, i + 1);
         fflush(stdout);
     }
 

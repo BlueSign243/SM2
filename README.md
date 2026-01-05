@@ -44,6 +44,13 @@ int SM2_Verify(SM2_PUB_KEY *pub_key, group *g, const uint8_t *msg, size_t mlen,
 使用cmake构建项目
 
 ## 运行结果
+运行中
 ```c
-Test done, success 100 / 100.
+SM2 Test Progress: [######################............................] 44 / 100
+```
+运行结束
+```c
+SM2 Test Progress: [##################################################] 100 / 100
+Test completed, success rate: 100 / 100
+All Test Cases Passed!
 ```
